@@ -97,6 +97,9 @@ df |>
   mutate(per = (n/nrow(df))*100) |> 
   datatable()
 
+
+write_csv(df, "data_pigs.csv")
+
 ```
 
 With all these filter applied, we have `r nrow(df)` respondents that we deem to be data journalists in an European country for the purposes of this analysis. Of those, we have `r sum(df$pigs)` (about `r round(sum(df$pigs)/nrow(df)*100, 2)`%) that are from Portugal, Italy, Greece and Spain.
@@ -156,25 +159,356 @@ The current analysis focuses mostly only on the tests where there was a signific
 
 ## PIGS journalists engage in significantly fewer cross-border investigative projects than their EU counterparts
 
+```{r}
+test_table <- table(df$pigs, df$collaboration)
+chisq.test(test_table)
+```
 
+The data available reveals that only 10 journalists in Portugal, Italy, Greece and Spain collaborate with other journalists from other countries during 2023. The fact that 14% of the respondents in PIGS countries collaborated with other news companies/organisations on a data journalism projects contrasts with the fact that, in the rest of Europe, this value is 32%.
+
+There is a statistically significant difference in the level of collaboration between journalists in PIGS countries and their EU counterparts. With the data suggesting that PIGS journalists engage in significantly fewer cross-border investigative projects compared to other EU journalists.
+
+```{r}
+df |>
+  group_by(pigs, collaboration) |>
+  summarise(n = n()) |>
+  filter(collaboration == "Yes") |>
+  ggplot(aes(x = pigs, y = n)) +
+    geom_bar(stat = "identity", fill = "#F14D3E") +
+    theme_minimal() +
+    labs(title = "Only 10 journalists in Portugal, Italy, Greece and Spain collaborate with other journalists from other countries during 2023",
+         x = "PIGS",
+         y = "Number of journalists")
+
+```
 
 
 
 ## PIGS journalists report significantly worse access to national and local data compared to other EU journalists
 
-## PIGS newsrooms tend to be smaller, with journalists working in isolated or understaffed teams 
+Since "access_local" and "access_national" variables use a categorical scale (Very Poor, Poor, Average, Good, and Very Good), we converted them to a numeric scale using the following logic:
 
-## Journalists in PIGS countries are more likely to work in very small teams (1-2 people)
+```{r}
+ordinal_mapping <- c("Very Poor" = 1, "Poor" = 2, "Average" = 3, "Good" = 4, "Very Good" = 5)
+ordinal_mapping
+```
 
-## PIGS journalists are significantly less likely to use OSINT techniques
+Because we are using categorical data, we decided to use the Mann-Whitney U test to compare the distributions of the two variables. This test is used to determine if there is a significant difference between two groups. The null hypothesis is that there is no difference between the two groups, while the alternative hypothesis is that there is a difference.
 
-## AI adoption in journalism appears to be slower in PIGS countries
 
-## PIGS newsrooms are more likely to have financial constraints, affecting their ability to invest in investigative and data journalism
+```{r}
+df$access_local_numeric <- as.numeric(factor(df$access_local, levels = names(ordinal_mapping), labels = ordinal_mapping))
+df$access_national_numeric <- as.numeric(factor(df$access_national, levels = names(ordinal_mapping), labels = ordinal_mapping))
+
+# Separate PIGS and non-PIGS groups
+pigs_local <- df$access_local_numeric[df$pigs == TRUE]
+non_pigs_local <- df$access_local_numeric[df$pigs == FALSE]
+
+pigs_national <- df$access_national_numeric[df$pigs == TRUE]
+non_pigs_national <- df$access_national_numeric[df$pigs == FALSE]
+
+# Perform Mann-Whitney U test
+local_mwu <- wilcox.test(pigs_local, non_pigs_local, alternative = "less")
+national_mwu <- wilcox.test(pigs_national, non_pigs_national, alternative = "less")
+
+# Print results
+print(local_mwu)
+print(national_mwu)
+```
+
+Both Mann-Whitney U tests showed a significant difference in the distribution of the two variables. 
+
+The results show a clear pattern: journalists in PIGS countries report significantly worse access to both local and national data than their EU counterparts. This means that, compared to journalists in other parts of Europe, they are more likely to struggle when trying to obtain official information.
+
+```{r}
+per_quality_acess_national <- df |>
+  group_by(pigs, access_national) |>
+  count() |> 
+  pivot_wider(
+    names_from = pigs,
+    values_from = n
+  ) |> 
+  rename(non_pigs = `FALSE`, pigs = `TRUE`) |> 
+  filter(!is.na(access_national))
+
+#transform to factor
+per_quality_acess_national$access_national <- factor(per_quality_acess_national$access_national, 
+  levels = rev(names(ordinal_mapping)), 
+  labels = rev(c("Very Poor", "Poor", "Average", "Good", "Very Good")))
+
+per_quality_acess_national <- per_quality_acess_national |> 
+  pivot_longer(cols = c(non_pigs, pigs), names_to = "pigs", values_to = "n")
+
+ggplot(per_quality_acess_national, aes(y = pigs, fill = access_national, x = n)) +
+  geom_col(position = "fill") +
+  scale_fill_manual(values = rev(c("#d73027", "#fc8d59", "#fee090", "#91bfdb", "#4575b4"))) +
+  labs(x = element_blank() , y = element_blank(), fill = "Access Quality", title = "Access to national data is significantly worse in PIGS countries") +
+  scale_x_continuous(labels = scales::percent) +  #
+  theme_minimal()
+
+```
+
+```{r}
+
+per_quality_acess_local <- df |>
+  group_by(pigs, access_local) |>
+  count() |> 
+  pivot_wider(
+    names_from = pigs,
+    values_from = n
+  ) |> 
+  rename(non_pigs = `FALSE`, pigs = `TRUE`) |>  
+  filter(!is.na(access_local))
+
+#transform to factor
+per_quality_acess_local$access_local <- factor(per_quality_acess_local$access_local, 
+  levels = rev(names(ordinal_mapping)), 
+  labels = rev(c("Very Poor", "Poor", "Average", "Good", "Very Good")))
+
+per_quality_acess_local <- per_quality_acess_local |> 
+  pivot_longer(cols = c(non_pigs, pigs), names_to = "pigs", values_to = "n")
+
+ggplot(per_quality_acess_local, aes(y = pigs, fill = access_local, x = n)) +
+  geom_col(position = "fill") +
+  scale_fill_manual(values = rev(c("#d73027", "#fc8d59", "#fee090", "#91bfdb", "#4575b4"))) +
+  labs(x = element_blank() , y = element_blank(), fill = "Access Quality", title = "Access to local data is significantly worse in PIGS countries") +
+  scale_x_continuous(labels = scales::percent) +  #
+  theme_minimal()
+
+```
+
+In Portugal, Italy, Greece and Spain, 25% of the respondents classified as "Poor" or "Very poor" the acess to data on a national level. A value that contrasts with the rest of Europe, where only one in 10 respondents classified as "Poor" or "Very poor" the acess to data on a national level.
+
+The difference is even more striking when we look at the access to local data. In Portugal, Italy, Greece and Spain, where none of the 72 respondendts classified the acess to local data as very good (in the rest of Europe, 9% classified acess to local data as very good).
+
+## PIGS data journalists are more likely to work in very small teams
+
+Regarding infrastructures and where data journalists work, there are three indicators on the survey that can be analyzed: 
+ - Number of journalists in the newsroom;
+ - Number of data journalists in a data unit;
+ - Job secuirty, where we use two variables:
+  - The number of journalists that believe they will be working in data journalism in 5 years;
+  - The number of journalists that are working full-time compared to the ones that are part-time.
+
+### Company size
+
+```{r}
+company_size_mapping <- c(
+    "Just me - I am a freelancer, sole proprietor, etc." = 1,
+    "2 to 9 employees" = 2,
+    "10 to 49 employees" = 3,
+    "50 to 99 employees" = 4,
+    "100 to 499 employees" = 5,
+    "500+" = 6
+)
+
+df$company_size_numeric <- company_size_mapping[df$company_size]
+pigs_company_size <- df$company_size_numeric[df$pigs == TRUE & !is.na(df$company_size_numeric)]
+non_pigs_company_size <- df$company_size_numeric[df$pigs == FALSE & !is.na(df$company_size_numeric)]
+
+#Mann-Whitney U tests
+company_size_mwu <- wilcox.test(pigs_company_size, non_pigs_company_size, alternative = "less")
+
+company_size_mwu
+```
+
+There's no significant difference between the distributions of the two variables. This means that there is no difference on the newsroom sizes bewteen southern european countries and the rest of Europe.
+
+### Number of data journalists in a data unit
+
+```{r}
+project_team_size_mapping <- c(
+    "One, just me" = 1,
+    "2-5" = 2,
+    "6-9" = 3,
+    "10 or more" = 4
+)
+
+df$project_team_size_numeric <- project_team_size_mapping[df$project_team_size]
+
+pigs_team_size <- df$project_team_size_numeric[df$pigs == TRUE & !is.na(df$project_team_size_numeric)]
+non_pigs_team_size <- df$project_team_size_numeric[df$pigs == FALSE & !is.na(df$project_team_size_numeric)]
+
+team_size_mwu <- wilcox.test(pigs_team_size, non_pigs_team_size, alternative = "less")
+
+team_size_mwu
+```
+Even though there is no significant difference regarding the size of the newrooms, PIGS journalists are significantly more likely to work alone than their EU counterparts.
+
+```{r}
+df |>
+  group_by(pigs, project_team_size, project_team_size_numeric) |>
+  filter(!is.na(project_team_size_numeric)) |> 
+  count() |> 
+  pivot_wider(
+    names_from = pigs,
+    values_from = n
+  ) |> 
+  rename(non_pigs = `FALSE`, pigs = `TRUE`) |>  
+  arrange(desc(project_team_size_numeric)) |>
+  ungroup() |>
+  select(-project_team_size_numeric) |>
+  filter(!is.na(project_team_size)) |> 
+  datatable()
+```
+
+```{r}
+df |>
+  group_by(pigs, project_team_size, project_team_size_numeric) |>
+  filter(!is.na(project_team_size_numeric)) |> 
+  count() |> 
+  pivot_wider(
+    names_from = pigs,
+    values_from = n
+  ) |> 
+  rename(non_pigs = `FALSE`, pigs = `TRUE`) |>  
+  arrange(desc(project_team_size_numeric)) |>
+  ungroup() |>
+  mutate(non_pigs = non_pigs/sum(non_pigs)*100, pigs = pigs/sum(pigs)*100) |>
+  select(-project_team_size_numeric) |>
+  filter(!is.na(project_team_size)) |>
+  mutate(project_team_size = ifelse(project_team_size == "One, just me", "1", project_team_size)) |>
+  mutate(project_team_size = ifelse(project_team_size == "10 or more", "10+", project_team_size)) |>
+  mutate(project_team_size = factor(project_team_size, levels = c("1", "2-5", "6-9", "10+"))) |>
+  pivot_longer(cols = c(non_pigs, pigs), names_to = "pigs", values_to = "n") |>
+  ggplot(aes(x = project_team_size, y = n, fill = pigs)) +
+  facet_wrap(~pigs) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("#F14D3E", "#4575b4")) +
+  labs(x = "Team size", y = "Percentage(%)", fill = "PIGS") +
+  theme_minimal()
+
+
+```
+
+More than half of the respondents from Portugal, Italy, Greece and Spain work alone as data journalists. The syndrome of the lonely-data-journalist also happens in the rest of Europe, but with a much higher percentage (32%). In fact, the most common team size is teams that range from 2 to 5 people.
+
+Combinig the two conclusions above, we are drawn to conclude that even though we can't say there is a significante difference in the size of the newsrooms where data journalists work at, there is one on the size of the data jorunalism teams. This two factors can also explain why Southern European counterparts are more likely to not participate in investigative and collaborative projects. Knowing that a lot of data journalism teams also take a role as a service desk to the newsroom, it can be argued that the typical data journalist in a PIGS country is someone that must take the role of a full team, whithout room to specialization in more than data.
+
+
+### Job security
+
+It's hard to find a good proxy question to measure the job security of data journalists in the survey. We are drawn to believe that two variables can be used
+ - The number of journalists that believe they will be working in data journalism in 5 years;
+ - The number of journalists that are working full-time compared to the ones that are part-time.
+
+ Even thought freelancing can be a legitimate option for many professionals that prefer the freedom it gives them, some professionals can also be pushed to it because of the lack of room for them in the newsroom. We took the secound option as a working hypothesis, knowing that it's hard, from the data provided, to know where do respondents belong to.
+
+ ```{r}
+five_years <- table(df$pigs, df$five_years_time)
+chi2_test_five_years <- chisq.test(five_years)
+
+chi2_test_five_years 
+```
+Both in PIGS and non-PIGS, only 10 respondent stated they don't belive they will not be workin in data journalism in 5 years. There's no statistical significant difference between the two groups.
+
+```{r}
+full_time_categories <- c(
+    "Full-time employment at a news company/organisation",
+    "Editor/ Team lead"
+)
+
+freelance_part_time_categories <- c(
+    "Part-time freelancer",
+    "Full-time freelancer",
+    "Part-time employment at a news company/organisation",
+    "Other (Please specify)"
+)
+
+df$occupation_category <- ifelse(df$occupation %in% full_time_categories, "Full-time", "Freelance/Part-time/Other")
+
+occupation <- table(df$pigs, df$occupation_category)
+
+chi2_test_occ <- chisq.test(occupation)
+chi2_test_occ
+
+```
+
+The same thing applies to Full time employed vs freelancers. Theres no statistically significant difference between the two groups.
+
+
+## AI adoption in journalism appears to be faster in PIGS countries
+
+```{r}
+x <- df |> 
+  filter(ai_usage != "I'm not sure")
+
+contingency_table_usage <- table(x$pigs, x$ai_usage)
+chi2_test_usage <- chisq.test(contingency_table_usage)
+
+chi2_test_usage
+```
+Even though it's right above the common 0.05 threshold to be considered statistically significant, there seams to be a slower adoption of AI in PIGS countries.
+
+```{r}
+x |>
+  group_by(pigs, ai_usage) |>
+  count() |>
+  ungroup() |>
+  group_by(pigs) |>
+  mutate(per = (n/sum(n))*100) |>
+  datatable()
+```
+
+```{r}
+x |>
+  group_by(pigs, ai_usage) |>
+  count() |>
+  ungroup() |>
+  group_by(pigs) |>
+  mutate(per = (n/sum(n))*100) |>
+  ggplot(aes(x = pigs, y = per, fill = ai_usage)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(
+    values = c("#F14D3E", "#4575b4"),
+    labels = c("No", "Yes")
+  ) +
+  scale_x_discrete(labels = c("non-PIGS", "PIGS")) +
+  labs(x = element_blank(), y = "% of journalists", fill = "AI tools incorporated",
+       title = "AI adoption in journalism appears to be faster in PIGS countries"
+  ) +
+  theme_minimal()
+```
+
+Even thought the value is not statistically significant, the data seams to show that journalists in PIGS countries seam to be more likely to be incorporating AI tools in their work when compared to the other eropean data journalists.
+
+```{r}
+df |>
+  group_by(ai_challenges) |>
+  count() |>
+  ungroup() |>
+  mutate(per = (n/sum(n))*100) |>
+  arrange(desc(n)) |>
+  datatable()
+```
+
 
 ## Gender unbalance 
 
+```{r}
+df |> 
+  group_by(pigs, gender) |>
+  filter(gender == "Female" | gender == "Male") |>
+  count() |>
+  ungroup() |>
+  group_by(pigs) |>
+  mutate(per = (n/sum(n))*100) |>
+  arrange(desc(n)) |>
+  datatable()
+```
 
+```{r}
+#test for statistical relevance of gender diferences
+x <- df |> filter(gender == "Female" | gender == "Male")
+
+chi2_test_gender <- table(x$pigs, x$gender)
+chi2_test_gender <- chisq.test(chi2_test_gender)
+chi2_test_gender
+```
+
+Even though the value is not statistically significant, the data seams to show that journalists in PIGS countries seam to be more equally distributed between male and female when compared to the rest of Europe, where there are more women journalists working in data journalism.
+
+More compelling data about the amount of female journalists working in these countries would be necessary to draw conclusions if the well known gender imbalance is STEM and tech related jobs is also affecting the field of data jounalism in PIGS countries.
 
 
 
