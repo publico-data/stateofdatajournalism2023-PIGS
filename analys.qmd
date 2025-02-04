@@ -1,0 +1,180 @@
+---
+title: "The State of Data Journalism in Portugal, Italy, Greece and Spain"
+subtitle: "What makes data journalism in PIGS different from the rest of Europe?"
+format:
+  lumo-html: 
+    logo: "logo.png"                                     # Optional. Path to a logo displayed above the title
+    github-repo: "https://github.com/publico-data/stateofdatajournalism2023-PIGS"        # Optional. Adds a github corner at the top right
+    primary-color: "#F14D3E"
+    self-contained: true
+    is-particlejs-enabled: true                          # Optional: display interactive particles in the document header
+    bg-image: ""                                         # Optional: link to an image for the header background
+author: Rui Barros e José Volta e Pinto
+date: last-modified
+---
+
+# Introduction
+
+This document intends to provide a focused analysis of the state of Data Journalism in Portugal, Italy, Greece and Spain. The analysis is based on the [State of Data Journalism 2023 survey](https://ejc.net/state-of-data-journalism-survey-2023) conducted by the European Journalism Centre (EJC).
+
+Although the EJC had conducted the survey since 2021, we opted to only include the data for 2023 since it's the most recent year available. The survey was open between December 7th, 2023 and January 16th, 2024. Participation was encouraged through direct mailing, social media promotion, and asking the DataJournalism.com and European Journalism Centre network of contacts for help in spreading the word. Targeted respondents include full and part time employed data journalists, as well as freelancers; data editors and team leads; trainers, faculty members and educators; students.
+
+Because it's a survey, it's hard to tell how representative the results are of the population it represents. But since there isn't a unified body that states if someone can be considered a data journalist or not, or either a clear dataset of how many data journalists are per country, we believe that the survey is a good proxy to get a sense of the state of data journalism in each country.
+
+The analysis was conducted by PÚBLICO's data jounalism team and the conclusions can only be attributed to them and them alone. European Journalism Centre (EJC) only provided the raw data and did not conduct this analysis.
+
+# Analysis
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(janitor)
+library(readxl)
+library(DT)
+library(ggbeeswarm)
+```
+
+## Data cleaning
+
+```{r}
+df <- read_excel("stateofdatajournalism2023_open_anonymised_dataset.xlsx")
+
+pigs <- c("Portugal", "Spain", "Italy", "Greece")
+rest_eu <- c("Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Hungary", "Ireland", "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Poland", "Romania", "Slovakia", "Slovenia", "Sweden", "France")
+
+nrow(df)
+
+df <- df %>%
+  filter(work_study_loc %in% c(pigs, rest_eu))
+
+nrow(df)
+
+```
+The 2023 survey had 768 respondents, of wich 332 were working or studying in a European country.
+
+```{r}
+df %>%
+  count(occupation) |> 
+  arrange(desc(n)) |>
+  datatable()
+```
+
+Because the survey wanted to focus on practicing professionals, we decided to only include the respondents that identified themselves as:
+ - Full-time employment at a news company/organisation;
+ - Full-time freelancer;
+ - Part-time freelancer;
+ - Editor/ Team lead;
+ - Part-time employment at a news company/organisation;
+
+
+```{r}
+df %>%
+  filter(occupation == "Other (Please specify)") %>%
+  select(occupation, occupation_other) %>%
+  datatable()
+```
+
+Since one of the options was "Other (Please specify)", we decided to analyse furher so that we could include every single person that we believe qualifies as a data journalist. Some respondents in this category sounded like they were afraid of considering themselves as data journalists, stating things like "I am a full time journalist at a news org but I use data journalism skills sporadically". We decided to include them, but we excluded all answers that worked in Public Relations, Marketing, or Communications.
+
+```{r}
+occupations_include <- c("Full-time employment at a news company/organisation","Full-time freelancer","Part-time freelancer","Editor/ Team lead","Part-time employment at a news company/organisation","Other (Please specify)")
+
+occupations_other <- c("Full time - radio journalist","Full time employment at media organisation","I'm full-time employed at a news company, but we don't do a lot of data journalism.","I am a full time journalist at a news org but I use data journalism skills sporadically","I am a freelancer and from time to time I use data journalism","I use data from time to time in my job as editor","Trabajo como periodista sanitaria y ocasionalmente hago periodismo de datos sobre salud","Corresponsal que recurre a veces al periodismo de datos","Freelance e studente", NA)
+
+df <- df %>%
+  filter(occupation %in% occupations_include) |> 
+  filter(occupation_other %in% occupations_other)
+```
+
+
+```{r}
+df <- df %>%
+  mutate(pigs = ifelse(work_study_loc %in% pigs, TRUE, FALSE))
+
+df |> 
+  group_by(pigs) |>
+  count() |> 
+  mutate(per = (n/nrow(df))*100) |> 
+  datatable()
+
+```
+
+With all these filter applied, we have `r nrow(df)` respondents that we deem to be data journalists in an European country for the purposes of this analysis. Of those, we have `r sum(df$pigs)` (about `r round(sum(df$pigs)/nrow(df)*100, 2)`%) that are from Portugal, Italy, Greece and Spain.
+
+## Global analysis
+```{r}
+per_country <- df |> 
+  group_by(work_study_loc) |>
+  count() |> 
+  mutate(per = (n/nrow(df))*100) |> 
+  arrange(-per)
+  
+per_country  |>
+  datatable()
+```
+
+Regarding the number of respondents, Germany is the most represented country (38 journalists), followed by Italy (34), Spain (21) and France(18). Portugal also has 12 respondents and Greece has 6.
+
+```{r}
+pop <- read_delim("population_eu.csv", delim = ";")
+
+per_country <- df |> 
+  group_by(work_study_loc) |>
+  count() |> 
+  mutate(per = (n/nrow(df))*100) |> 
+  arrange(-per)
+
+per_country <- per_country |>
+  left_join(pop, by = c("work_study_loc" = "Country")) |> 
+  mutate(per = (n/pop)*1000000)
+
+m <- per_country  |>
+  mutate(pigs = ifelse(work_study_loc %in% pigs, TRUE, FALSE))
+
+m <- m |> 
+  mutate(pigs = factor(pigs, levels = c(TRUE, FALSE)))
+
+ggplot(m, aes(y = per, x = pigs, colour = pigs, fill = pigs)) +
+    geom_beeswarm(cex = 3) +
+    theme_minimal() +
+    labs(title="Number of data journalists per 1M hab in EU",
+          y="Journalists per 1M hab")
+
+```
+
+The absolute numbers can give the impression that PIGS countries have a good number of data journalists (specially compared to other places in Europe). Even when we look at the data per 1M habitants, PIGS countries are not that different from the rest of Europe.
+
+The number of respondents can be although, misleading, since we don't know if the survey didn't got higher response rates in some countries, if the media sector has more workers in each case, etc.
+
+# Main findings
+
+To understand how different PIGS and non-PIGS countries are data journalism wise, we compared the Chi-square test between the two groups. This statistical test is used to determine if there is a significant difference between two groups. The null hypothesis is that there is no difference between the two groups, while the alternative hypothesis is that there is a difference.
+
+Because the Chi-square (χ^2) can show a relationship only by chance, for every relatiosnhip we also calculated the p-value. This can allow us to determine if the relationship verified happens by chance or if it is real. Only values with a p-value lower than 0.05 or closer to it were considered for this analysis.
+
+The current analysis focuses mostly only on the tests where there was a significant difference between the two groups. Other tests were explored but, for the sake of simplicity, we only included the ones that were significant.
+
+## PIGS journalists engage in significantly fewer cross-border investigative projects than their EU counterparts
+
+
+
+
+
+## PIGS journalists report significantly worse access to national and local data compared to other EU journalists
+
+## PIGS newsrooms tend to be smaller, with journalists working in isolated or understaffed teams 
+
+## Journalists in PIGS countries are more likely to work in very small teams (1-2 people)
+
+## PIGS journalists are significantly less likely to use OSINT techniques
+
+## AI adoption in journalism appears to be slower in PIGS countries
+
+## PIGS newsrooms are more likely to have financial constraints, affecting their ability to invest in investigative and data journalism
+
+## Gender unbalance 
+
+
+
+
+

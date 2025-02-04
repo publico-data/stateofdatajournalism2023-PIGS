@@ -1,6 +1,8 @@
-# State of Data Journalism Survey 2023
+# State of Data Journalism Survey 2023 - PIGS
 
-Final result and more info here: https://ejc.net/state-of-data-journalism-survey-2023
+This repository contains the data and code to analyse what differenciates data journalism in Portugal, Italy, Greece and Spain from the rest of the european union countries. Teh data was collected by the [European Journalism Centre (EJC)](https://ejc.net/state-of-data-journalism-survey-2023). 
+
+The analysis was conducted by PÚBLICO's data jounalism team and the conclusions can only be attributed to them and them alone. European Journalism Centre (EJC) only provided the raw data and did not conduct this analysis. 
 
 ## Data
 
