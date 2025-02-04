@@ -394,12 +394,13 @@ It's hard to find a good proxy question to measure the job security of data jour
 
  Even thought freelancing can be a legitimate option for many professionals that prefer the freedom it gives them, some professionals can also be pushed to it because of the lack of room for them in the newsroom. We took the secound option as a working hypothesis, knowing that it's hard, from the data provided, to know where do respondents belong to.
 
- ```{r}
+```{r}
 five_years <- table(df$pigs, df$five_years_time)
 chi2_test_five_years <- chisq.test(five_years)
 
 chi2_test_five_years 
 ```
+
 Both in PIGS and non-PIGS, only 10 respondent stated they don't belive they will not be workin in data journalism in 5 years. There's no statistical significant difference between the two groups.
 
 ```{r}
@@ -460,7 +461,7 @@ x |>
   ggplot(aes(x = pigs, y = per, fill = ai_usage)) +
   geom_col(position = "stack") +
   scale_fill_manual(
-    values = c("#F14D3E", "#4575b4"),
+    values = c("#F14D3E", "#4575b4"),  # Only 2 colors provided
     labels = c("No", "Yes")
   ) +
   scale_x_discrete(labels = c("non-PIGS", "PIGS")) +
@@ -499,9 +500,9 @@ df |>
 
 ```{r}
 #test for statistical relevance of gender diferences
-x <- df |> filter(gender == "Female" | gender == "Male")
+a <- df |> filter(gender == "Female" | gender == "Male")
 
-chi2_test_gender <- table(x$pigs, x$gender)
+chi2_test_gender <- table(a$pigs, a$gender)
 chi2_test_gender <- chisq.test(chi2_test_gender)
 chi2_test_gender
 ```
